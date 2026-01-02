@@ -1,6 +1,4 @@
-# pdfm.py
-# To build with PyInstaller:
-# pyinstaller --noconfirm --onefile --windowed --add-data "images\\pdfmerger\\pdf.png;images" --icon=images/pdfmerger/icon.ico --name="PDF Merger" pdfm.py
+# pdfm_GUI.py
 
 import os
 import sys
@@ -14,9 +12,8 @@ ctk.set_default_color_theme("blue")
 
 
 def resource_path(relative_path):
-    """ Get absolute path to resource, works for dev and for PyInstaller """
     try:
-        base_path = sys._MEIPASS  # PyInstaller sets this at runtime
+        base_path = sys._MEIPASS
     except AttributeError:
         base_path = os.path.abspath(".")
     return os.path.join(base_path, relative_path)
@@ -27,11 +24,13 @@ class PDFMergerApp(ctk.CTk):
         super().__init__()
 
         self.title("PDF Merger")
-        self.geometry("700x600")
+        self.geometry("750x600")
         self.resizable(False, False)
 
         self.file_paths = []
         self.page_ranges = []
+        self.page_counts = []
+        self.selected_index = 0
 
         icon_path = resource_path("images/pdfmerger/pdf.png")
         self.pdf_icon = ctk.CTkImage(
@@ -39,38 +38,69 @@ class PDFMergerApp(ctk.CTk):
             size=(24, 24)
         )
 
-        self.title_label = ctk.CTkLabel(
-            self, text="Select PDFs & Reorder", font=("Segoe UI", 20, "bold"))
-        self.title_label.pack(pady=10)
+        ctk.CTkLabel(
+            self, text="Select PDFs & Reorder",
+            font=("Segoe UI", 20, "bold")
+        ).pack(pady=10)
 
-        self.file_frame = ctk.CTkScrollableFrame(self, width=660, height=350)
+        self.file_frame = ctk.CTkScrollableFrame(self, width=720, height=360)
         self.file_frame.pack(pady=10)
 
         btn_row = ctk.CTkFrame(self)
         btn_row.pack(pady=10)
 
         ctk.CTkButton(btn_row, text="📂 Select PDFs",
-                      command=self.select_pdfs).grid(row=0, column=0, padx=10)
+                      command=self.select_pdfs).grid(row=0, column=0, padx=8)
         ctk.CTkButton(btn_row, text="⬆️ Move Up",
-                      command=self.move_up).grid(row=0, column=1, padx=10)
+                      command=self.move_up).grid(row=0, column=1, padx=8)
         ctk.CTkButton(btn_row, text="⬇️ Move Down",
-                      command=self.move_down).grid(row=0, column=2, padx=10)
+                      command=self.move_down).grid(row=0, column=2, padx=8)
+        ctk.CTkButton(btn_row, text="🗑 Remove",
+                      command=self.remove_pdf).grid(row=0, column=3, padx=8)
 
         self.merge_button = ctk.CTkButton(
-            self, text="🛠️ Merge PDFs", command=self.merge_pdfs, width=180)
+            self, text="🛠️ Merge PDFs",
+            command=self.merge_pdfs, width=200
+        )
         self.merge_button.pack(pady=15)
 
-        self.selected_index = 0
+    # ------------------ FILE HANDLING ------------------
 
     def select_pdfs(self):
         files = list(filedialog.askopenfilenames(
             title="Select PDF files",
             filetypes=[("PDF files", "*.pdf")]
         ))
-        if files:
-            self.file_paths = files
-            self.selected_index = 0
-            self.update_icon_list()
+        if not files:
+            return
+
+        self.file_paths = files
+        self.page_counts = []
+
+        for f in files:
+            try:
+                self.page_counts.append(len(fitz.open(f)))
+            except:
+                self.page_counts.append(0)
+
+        self.selected_index = 0
+        self.update_icon_list()
+
+    def remove_pdf(self):
+        if not self.file_paths:
+            return
+
+        idx = self.selected_index
+        self.file_paths.pop(idx)
+        self.page_counts.pop(idx)
+        self.page_ranges.pop(idx)
+
+        if self.selected_index >= len(self.file_paths):
+            self.selected_index = max(0, len(self.file_paths) - 1)
+
+        self.update_icon_list()
+
+    # ------------------ UI ------------------
 
     def update_icon_list(self):
         for widget in self.file_frame.winfo_children():
@@ -79,27 +109,41 @@ class PDFMergerApp(ctk.CTk):
         self.page_ranges = []
 
         for idx, path in enumerate(self.file_paths):
-            file_name = os.path.basename(path)
-
             row = ctk.CTkFrame(self.file_frame)
             row.pack(fill="x", pady=4, padx=5)
 
-            label = ctk.CTkLabel(row, image=self.pdf_icon, text=f"  {file_name}",
-                                 compound="left", width=250, anchor="w", font=("Segoe UI", 14))
+            label = ctk.CTkLabel(
+                row, image=self.pdf_icon,
+                text=f"  {os.path.basename(path)}",
+                compound="left", width=240,
+                anchor="w", font=("Segoe UI", 14)
+            )
             label.grid(row=0, column=0, padx=(5, 10))
 
-            from_entry = ctk.CTkEntry(row, width=50, placeholder_text="From")
-            from_entry.grid(row=0, column=1, padx=(0, 5))
+            pages_lbl = ctk.CTkLabel(
+                row, text=f"Pages: {self.page_counts[idx]}",
+                width=80, font=("Segoe UI", 12)
+            )
+            pages_lbl.grid(row=0, column=1, padx=(0, 10))
 
-            to_entry = ctk.CTkEntry(row, width=50, placeholder_text="To")
-            to_entry.grid(row=0, column=2, padx=(0, 5))
+            from_entry = ctk.CTkEntry(
+                row, width=50, placeholder_text="1"
+            )
+            from_entry.grid(row=0, column=2, padx=(0, 5))
 
-            preview_btn = ctk.CTkButton(row, text="👁 Preview", width=80,
-                                        command=lambda p=path, i=idx: self.preview_pages(p, i))
-            preview_btn.grid(row=0, column=3, padx=(10, 5))
+            to_entry = ctk.CTkEntry(
+                row, width=50,
+                placeholder_text=str(self.page_counts[idx])
+            )
+            to_entry.grid(row=0, column=3, padx=(0, 5))
+
+            preview_btn = ctk.CTkButton(
+                row, text="👁 Preview", width=80,
+                command=lambda p=path, i=idx: self.preview_pages(p, i)
+            )
+            preview_btn.grid(row=0, column=4, padx=(10, 5))
 
             self.page_ranges.append((from_entry, to_entry))
-
             label.bind("<Button-1>", lambda e, i=idx: self.set_selected(i))
 
         self.highlight_selected()
@@ -111,25 +155,28 @@ class PDFMergerApp(ctk.CTk):
     def highlight_selected(self):
         for i, widget in enumerate(self.file_frame.winfo_children()):
             widget.configure(
-                fg_color=("gray40" if i == self.selected_index else "transparent"))
+                fg_color="gray40" if i == self.selected_index else "transparent"
+            )
+
+    # ------------------ REORDER ------------------
 
     def move_up(self):
-        if self.selected_index > 0:
-            self.file_paths[self.selected_index - 1], self.file_paths[self.selected_index] = \
-                self.file_paths[self.selected_index], self.file_paths[self.selected_index - 1]
-            self.page_ranges[self.selected_index - 1], self.page_ranges[self.selected_index] = \
-                self.page_ranges[self.selected_index], self.page_ranges[self.selected_index - 1]
+        i = self.selected_index
+        if i > 0:
+            for lst in (self.file_paths, self.page_counts, self.page_ranges):
+                lst[i - 1], lst[i] = lst[i], lst[i - 1]
             self.selected_index -= 1
             self.update_icon_list()
 
     def move_down(self):
-        if self.selected_index < len(self.file_paths) - 1:
-            self.file_paths[self.selected_index + 1], self.file_paths[self.selected_index] = \
-                self.file_paths[self.selected_index], self.file_paths[self.selected_index + 1]
-            self.page_ranges[self.selected_index + 1], self.page_ranges[self.selected_index] = \
-                self.page_ranges[self.selected_index], self.page_ranges[self.selected_index + 1]
+        i = self.selected_index
+        if i < len(self.file_paths) - 1:
+            for lst in (self.file_paths, self.page_counts, self.page_ranges):
+                lst[i + 1], lst[i] = lst[i], lst[i + 1]
             self.selected_index += 1
             self.update_icon_list()
+
+    # ------------------ MERGE ------------------
 
     def merge_pdfs(self):
         if not self.file_paths:
@@ -137,78 +184,67 @@ class PDFMergerApp(ctk.CTk):
             return
 
         doc = fitz.open()
+
         for i, file in enumerate(self.file_paths):
             try:
                 pdf = fitz.open(file)
-                from_entry, to_entry = self.page_ranges[i]
-                start = from_entry.get()
-                end = to_entry.get()
+                start, end = self.page_ranges[i]
+                s, e = start.get(), end.get()
 
-                if start.isdigit() and end.isdigit():
-                    start_page = max(0, int(start) - 1)
-                    end_page = min(int(end), len(pdf))
-                    doc.insert_pdf(pdf, from_page=start_page,
-                                   to_page=end_page - 1)
+                if s.isdigit() and e.isdigit():
+                    doc.insert_pdf(
+                        pdf,
+                        from_page=max(0, int(s) - 1),
+                        to_page=min(int(e), len(pdf)) - 1
+                    )
                 else:
                     doc.insert_pdf(pdf)
 
-            except Exception as e:
+            except Exception as ex:
                 messagebox.showerror(
-                    "Error", f"❌ Failed to add:\n{file}\n\n{e}")
+                    "Error", f"Failed to add:\n{file}\n\n{ex}")
 
-        output_path = filedialog.asksaveasfilename(
+        output = filedialog.asksaveasfilename(
             title="Save Merged PDF",
             defaultextension=".pdf",
             filetypes=[("PDF files", "*.pdf")]
         )
 
-        if output_path:
+        if output:
             try:
-                doc.save(output_path)
-                doc.close()
-                messagebox.showinfo(
-                    "Success", "✅ PDF merged and saved successfully!")
-            except Exception as e:
-                messagebox.showerror(
-                    "Save Failed", f"❌ Could not save file:\n\n{e}")
-        else:
-            doc.close()
+                doc.save(output)
+                messagebox.showinfo("Success", "PDF merged successfully!")
+            except Exception as ex:
+                messagebox.showerror("Save Failed", str(ex))
+        doc.close()
+
+    # ------------------ PREVIEW ------------------
 
     def preview_pages(self, filepath, index):
-        preview_win = ctk.CTkToplevel(self)
-        preview_win.title("Page Preview")
-        preview_win.geometry("600x500")
+        win = ctk.CTkToplevel(self)
+        win.title("Page Preview")
+        win.geometry("600x500")
 
-        from_entry, to_entry = self.page_ranges[index]
-        start = from_entry.get()
-        end = to_entry.get()
+        start, end = self.page_ranges[index]
+        s = int(start.get()) - 1 if start.get().isdigit() else 0
+        e = int(end.get()) if end.get().isdigit() else None
+
+        frame = ctk.CTkScrollableFrame(win, width=580, height=460)
+        frame.pack(padx=10, pady=10)
 
         try:
             doc = fitz.open(filepath)
-            start_page = int(start) - 1 if start.isdigit() else 0
-            end_page = int(end) if end.isdigit() else len(doc)
-
-            canvas = ctk.CTkScrollableFrame(preview_win, width=580, height=460)
-            canvas.pack(padx=10, pady=10)
-
-            for i in range(start_page, min(end_page, len(doc))):
+            for i in range(s, min(e or len(doc), len(doc))):
                 pix = doc[i].get_pixmap(matrix=fitz.Matrix(0.5, 0.5))
                 img = Image.frombytes(
                     "RGB", [pix.width, pix.height], pix.samples)
                 img = img.resize((300, int(img.height * 300 / img.width)))
-                img_tk = ImageTk.PhotoImage(img)
-
-                img_label = ctk.CTkLabel(canvas, image=img_tk, text="")
-                img_label.image = img_tk  # Keep reference
-                img_label.pack(pady=5)
-
-            preview_win.focus_set()
-            preview_win.grab_set()
-            preview_win.wait_window()
-
-        except Exception as e:
-            messagebox.showerror(
-                "Preview Error", f"Failed to preview PDF:\n{e}")
+                tk_img = ImageTk.PhotoImage(img)
+                lbl = ctk.CTkLabel(frame, image=tk_img, text="")
+                lbl.image = tk_img
+                lbl.pack(pady=5)
+        except Exception as ex:
+            messagebox.showerror("Preview Error", str(ex))
 
 
 if __name__ == "__main__":
