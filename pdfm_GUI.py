@@ -43,11 +43,11 @@ class PDFMergerApp(ctk.CTk):
             font=("Segoe UI", 20, "bold")
         ).pack(pady=10)
 
-        self.file_frame = ctk.CTkScrollableFrame(self, width=720, height=360)
+        self.file_frame = ctk.CTkScrollableFrame(self, width=700, height=360)
         self.file_frame.pack(pady=10)
 
         btn_row = ctk.CTkFrame(self)
-        btn_row.pack(pady=10)
+        btn_row.pack(pady=20, padx=20)
 
         ctk.CTkButton(btn_row, text="📂 Select PDFs",
                       command=self.select_pdfs).grid(row=0, column=0, padx=8)
@@ -112,33 +112,44 @@ class PDFMergerApp(ctk.CTk):
             row = ctk.CTkFrame(self.file_frame)
             row.pack(fill="x", pady=4, padx=5)
 
+            # FIXED filename truncation
+            filename = os.path.basename(path)
+            if len(filename) > 30:
+                filename = filename[:27] + "..."
+
             label = ctk.CTkLabel(
-                row, image=self.pdf_icon,
-                text=f"  {os.path.basename(path)}",
-                compound="left", width=240,
-                anchor="w", font=("Segoe UI", 14)
+                row,
+                image=self.pdf_icon,
+                text=f"  {filename}",
+                compound="left",
+                width=240,
+                anchor="w",
+                font=("Segoe UI", 14)
             )
             label.grid(row=0, column=0, padx=(5, 10))
 
             pages_lbl = ctk.CTkLabel(
-                row, text=f"Pages: {self.page_counts[idx]}",
-                width=80, font=("Segoe UI", 12)
+                row,
+                text=f"Pages: {self.page_counts[idx]}",
+                width=80,
+                font=("Segoe UI", 12)
             )
             pages_lbl.grid(row=0, column=1, padx=(0, 10))
 
-            from_entry = ctk.CTkEntry(
-                row, width=50, placeholder_text="1"
-            )
+            from_entry = ctk.CTkEntry(row, width=50, placeholder_text="1")
             from_entry.grid(row=0, column=2, padx=(0, 5))
 
             to_entry = ctk.CTkEntry(
-                row, width=50,
+                row,
+                width=50,
                 placeholder_text=str(self.page_counts[idx])
             )
             to_entry.grid(row=0, column=3, padx=(0, 5))
 
             preview_btn = ctk.CTkButton(
-                row, text="👁 Preview", width=80,
+                row,
+                text="👁 Preview",
+                width=80,
                 command=lambda p=path, i=idx: self.preview_pages(p, i)
             )
             preview_btn.grid(row=0, column=4, padx=(10, 5))
